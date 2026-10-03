@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+from su_index import rebuild_index
+
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = ROOT / "private"
 PREFIX = "software_use_only-"
@@ -132,6 +134,33 @@ def sync_frontmatter(md, title, triggers, tools):
     return changed
 
 
+SOURCES_PREFIX = "- 学习来源："
+
+
+def sync_sources_line(md, sources):
+    """重写附属技能 SKILL.md 的「- 学习来源：」单行（learn/reinforce 共用）。
+
+    只动这一行：正文其余内容与 knowledge/experience.jsonl 一律不碰
+    （红线3 只追加不改历史）。值取合并后的 learned_from，渲染为 JSON 数组。
+    """
+    if not md.exists():
+        return False
+    lines = md.read_text(encoding="utf-8-sig").splitlines()
+    new_line = SOURCES_PREFIX + json.dumps(sources, ensure_ascii=False)
+    changed = False
+    for i, line in enumerate(lines):
+        if line.startswith(SOURCES_PREFIX):
+            if line.rstrip() != new_line:
+                lines[i] = new_line
+                changed = True
+            break
+    if changed:
+        tmp = md.with_suffix(".md.tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, md)
+    return changed
+
+
 def write_attached(skill_dir, app, title, triggers, tools, sources,
                    status, conf, uses):
     name = PREFIX + app
@@ -218,10 +247,20 @@ def main():
     tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n",
                    encoding="utf-8")
     os.replace(tmp, state_path)
-    emit({"ok": True, "action": "learn", "name": PREFIX + app,
-          "path": str(skill_dir), "created": created, "status": status,
-          "confidence": conf, "evidence_count": len(evidence),
-          "ledger": str(ledger), "next": "su_index.py --build"})
+    sync_sources_line(skill_dir / "SKILL.md", state["learned_from"])
+    index_rc, index_stderr = rebuild_index()
+    payload = {"ok": index_rc == 0, "action": "learn", "name": PREFIX + app,
+               "path": str(skill_dir), "created": created, "status": status,
+               "confidence": conf, "evidence_count": len(evidence),
+               "ledger": str(ledger), "learned_from": state["learned_from"],
+               "index_rc": index_rc, "index_stderr": index_stderr or None}
+    if index_rc != 0:
+        payload["error"] = "E_INDEX_STALE"
+        payload["detail"] = ("附属技能已写盘但 index.json 未刷新（rc=%s），"
+                             "索引仍陈旧" % index_rc)
+        emit(payload)
+        return 2
+    emit(payload)
     return 0
 
 

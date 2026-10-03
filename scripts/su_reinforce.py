@@ -8,10 +8,12 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 from pathlib import Path
+
+from su_index import rebuild_index
+from su_learn import sync_sources_line
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = ROOT / "private"
@@ -90,15 +92,15 @@ def main():
     with chlog.open("a", encoding="utf-8") as fh:
         fh.write("- %s reinforce %s conf=%.3f uses=%d :: %s\n"
                  % (new_state["last_used"], a.outcome, conf, uses, a.note))
-    rebuilt = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "su_index.py"), "--build"],
-        capture_output=True, text=True)
-    emit({"ok": rebuilt.returncode == 0, "action": "reinforce",
+    sync_sources_line(skill_dir / "SKILL.md", new_state["learned_from"])
+    index_rc, index_stderr = rebuild_index()
+    emit({"ok": index_rc == 0, "action": "reinforce",
           "name": PREFIX + app, "outcome": a.outcome, "confidence": conf,
           "uses": uses, "status": status, "last_used": new_state["last_used"],
-          "ledger": str(ledger), "index_rc": rebuilt.returncode,
-          "index_stderr": rebuilt.stderr.strip()[:200] or None})
-    return 0 if rebuilt.returncode == 0 else 2
+          "ledger": str(ledger), "learned_from": new_state["learned_from"],
+          "index_rc": index_rc, "index_stderr": index_stderr or None,
+          "error": None if index_rc == 0 else "E_INDEX_STALE"})
+    return 0 if index_rc == 0 else 2
 
 
 if __name__ == "__main__":
