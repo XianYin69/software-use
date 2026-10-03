@@ -1,4 +1,9 @@
 # CHANGELOG
+## 未发布（feat）- 2026-10-03（前台回退 standing-grant）
+- `su_invoke.py` 新增 `fg_policy()`：读附属技能 `state.json` 的 `foreground_fallback` 并随契约下发（allowed/consent_token/scope/limits）；无该字段＝按原规则逐次征得同意。CONTRACT 第 3 步同步：长期授权只对被点名软件生效。
+- `SKILL.md`：补「用户同意」两种形态（逐次同意 / standing-grant），执行仍逐步过 `safety_gate`＋`hud_overlay`＋前后焦点审计，越出 limits 即停。
+- 守卫：`--guard` PASS（公开仓 private 泄漏 0）；授权数据只落私有仓，公开仓仅通用机制。
+
 ## 未发布（docs）- 2026-10-03（新增 knowledge/外部消费方契约.md）
 - 为外部 PUBLIC 技能（首例 `aesthetics`）固化消费姿势：只经 `su_index.py --find` 检索、`su_invoke.py --app` 取绝对路径与契约；禁止直读写 `software-use\private\`、禁止把 `software_use_only-*` 写进 SMS `register.json`（登记由 `register.py` 深度 2 完成）、禁止复制附属正文进消费方仓库（红线 8）。
 - 取证：`--find screenshot/image/viewer/photo/figma/vscode/typography/layout/color/font/design/aesthetics` 全部 `E_NOT_LEARNED`（现仅 demo、python-cli 两条附属）；`--audit` rc=0、`errors: []`、`git_tracked: [private/.gitkeep]`。既有 0.4.0 条目一字未改。
