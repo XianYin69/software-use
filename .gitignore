@@ -10,8 +10,6 @@ __pycache__/
 .vscode/
 .kilo/
 
-# 自测产物（learn/invoke 试跑生成，不入库）
-private/software_use_only-demo/
-
-# 索引为生成物，可选忽略（保留以便审计时留痕）
-# private/index.json
+# 私有附属技能与生成索引：本仓库可见性 PUBLIC，绝不允许入库（红线1）
+private/*
+!private/.gitkeep
