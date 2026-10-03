@@ -4,9 +4,10 @@ software-use 不可逾越的红线与执行期降级策略。
 
 ## 内容
 
-- [红线约束.md](红线约束.md)：契约 §8 五条红线（私有不外泄 / 无证据不称学会 /
+- [红线约束.md](红线约束.md)：契约 §8 五条红线（注册强制·发布禁止 / 无证据不称学会 /
   只追加 / 写盘边界 / 不自判读语义）。
-- [降级策略.md](降级策略.md)：`E_NOT_LEARNED` / `E_LEAK` / `E_NO_EVIDENCE` 的兜底动作。
+- [降级策略.md](降级策略.md)：`E_NOT_LEARNED` / `E_NOT_REGISTERED` / `E_GIT_LEAK` /
+  `E_NO_GITIGNORE` / `E_NO_EVIDENCE` 的兜底动作。
 
 ## 遵守原则
 

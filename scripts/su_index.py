@@ -1,7 +1,8 @@
 """su_index.py - 私有附属技能索引器。
 
 按固定前缀 software_use_only- 扫描 private/（深度 2），生成/校验 index.json；
---audit 反查 SMS register.json 防泄漏；--find 关键词检索。全部输出结构化 JSON。
+--audit 校验附属技能已登记进 SMS register.json（注册＝强制），并校验其绝不进 git（进 git＝禁止）；
+--find 关键词检索。全部输出结构化 JSON。
 """
 import argparse
 import json
@@ -184,6 +185,7 @@ def scan():
             "uses": int(state.get("uses", 0)),
             "last_used": state.get("last_used"),
             "learned_from": state.get("learned_from", []),
+            "used_skills": state.get("used_skills", []),
             "evidence": state.get("evidence", []),
             "status": state.get("status", "draft"),
         })
@@ -234,36 +236,95 @@ def rebuild_index():
     return proc.returncode, (proc.stderr or "").strip()[:200]
 
 
-def audit(register_path):
-    """反查 SMS register.json：任何 software_use_only-* 出现即泄漏。
-    register 缺失/损坏 → 结构化错误码（E_NO_REGISTER / E_BAD_REGISTER），
-    checked=False 且由调用方回 rc=2，绝不静默通过。"""
-    path = Path(register_path)
+def git_tracked_private():
+    """`git -C <software-use> ls-files private` → 被跟踪清单；
+    git 不可用/非仓库 → None（调用方须判为 E_NO_GIT，不得静默通过）。"""
+    try:
+        proc = subprocess.run(["git", "-C", str(ROOT), "ls-files", "private"],
+                              capture_output=True, text=True)
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return [ln.strip().replace("\\", "/")
+            for ln in (proc.stdout or "").splitlines() if ln.strip()]
+
+
+def gitignore_ok():
+    """`.gitignore` 是否含 `private/*`（附属技能永不入库的第一道闸）。"""
+    path = ROOT / ".gitignore"
     if not path.exists():
-        return {"checked": False, "register": str(path), "leaks": [],
-                "error": "E_NO_REGISTER",
-                "detail": "register.json 不存在，无法反查泄漏：%s" % path}
+        return False
+    for line in path.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+        if line.strip() == "private/*":
+            return True
+    return False
+
+
+def _bad(register_path, code, detail):
+    return {"checked": False, "register": str(register_path), "registered": [],
+            "unregistered": [], "errors": [code], "error": code, "detail": detail}
+
+
+def audit(register_path, rows=None):
+    """契约反转：附属技能**必须**登记进 SMS register.json（visibility=PRIVATE、
+    parent=software-use）——缺失或不符 → E_NOT_REGISTERED；进 git 才是泄漏 →
+    E_GIT_LEAK（ls-files private 除 .gitkeep 外有项）/ E_NO_GITIGNORE（缺 private/*）。
+    register 缺失/损坏仍回 E_NO_REGISTER / E_BAD_REGISTER，checked=False 由调用方 rc=2。"""
+    path = Path(register_path)
+    if rows is None:
+        rows, _ = scan()
+    if not path.exists():
+        return _bad(path, "E_NO_REGISTER",
+                    "register.json 不存在，无法确认附属技能已登记：%s" % path)
     try:
         doc = json.loads(path.read_text(encoding="utf-8-sig", errors="replace"))
     except (OSError, ValueError) as err:
-        return {"checked": False, "register": str(path), "leaks": [],
-                "error": "E_BAD_REGISTER",
-                "detail": "register.json 不可解析：%s" % err}
+        return _bad(path, "E_BAD_REGISTER", "register.json 不可解析：%s" % err)
     if not isinstance(doc, dict) or not isinstance(doc.get("skills"), list):
-        return {"checked": False, "register": str(path), "leaks": [],
-                "error": "E_BAD_REGISTER",
-                "detail": "register.json 缺 skills 数组，格式不符"}
-    leaks = []
-    for row in doc["skills"]:
-        if not isinstance(row, dict):
+        return _bad(path, "E_BAD_REGISTER", "register.json 缺 skills 数组，格式不符")
+    by_id = {str(r.get("id") or r.get("name")): r for r in doc["skills"]
+             if isinstance(r, dict)}
+    registered, unregistered = [], []
+    for row in rows:
+        ent = by_id.get(row["name"])
+        if ent is None:
+            unregistered.append({"id": row["name"], "reason": "register.json 无条目"})
             continue
-        ident = " ".join(str(row.get(k, "")) for k in
-                         ("id", "name", "install_path")).lower()
-        if PREFIX in ident or "\\private\\" in ident or "/private/" in ident:
-            leaks.append(row.get("id") or row.get("name"))
-    return {"checked": True, "register": str(path), "leaks": leaks,
-            "error": "E_LEAK" if leaks else None,
-            "detail": "反查 register.json 是否混入附属技能"}
+        why = []
+        if str(ent.get("visibility", "")).upper() != "PRIVATE":
+            why.append("visibility=%r 应为 PRIVATE" % ent.get("visibility"))
+        if ent.get("parent") != PARENT:
+            why.append("parent=%r 应为 %r" % (ent.get("parent"), PARENT))
+        if ent.get("publish") is not False:
+            why.append("publish=%r 应为 false（永不进 git/远端）" % ent.get("publish"))
+        if why:
+            unregistered.append({"id": row["name"], "reason": "；".join(why)})
+        else:
+            registered.append(row["name"])
+    errors = []
+    detail = []
+    if unregistered:
+        errors.append("E_NOT_REGISTERED")
+        detail.append("附属技能未正确登记：%s" % json.dumps(unregistered,
+                                                            ensure_ascii=False))
+    tracked = git_tracked_private()
+    if tracked is None:
+        errors.append("E_NO_GIT")
+        detail.append("git 不可用/非仓库，无法核验 private/ 未被跟踪——不得当作无泄漏放行")
+    else:
+        leaked = [f for f in tracked if f != "private/.gitkeep"]
+        if leaked:
+            errors.append("E_GIT_LEAK")
+            detail.append("private/ 内容有被 git 跟踪项：%s" % ", ".join(leaked))
+    if not gitignore_ok():
+        errors.append("E_NO_GITIGNORE")
+        detail.append(".gitignore 缺 `private/*`，附属技能可能随提交入库")
+    detail.append("注册＝强制（SMS 需按 id 索引派发），进 git/远端/GitHub＝禁止")
+    return {"checked": True, "register": str(path), "registered": registered,
+            "unregistered": unregistered, "git_tracked": tracked,
+            "errors": errors, "error": errors[0] if errors else None,
+            "detail": "；".join(detail)}
 
 
 def main():
@@ -271,7 +332,8 @@ def main():
         description="私有附属技能索引：按前缀 software_use_only- 扫 private/")
     ap.add_argument("--build", action="store_true", help="扫描并生成 index.json")
     ap.add_argument("--find", metavar="KEY", help="按 name/app/触发词检索")
-    ap.add_argument("--audit", action="store_true", help="反查 register.json 防泄漏")
+    ap.add_argument("--audit", action="store_true",
+                    help="校验附属技能已登记 register.json（注册强制·进 git 禁止）")
     ap.add_argument("--list", action="store_true", help="列出全部索引条目")
     ap.add_argument("--register", default=str(DEFAULT_REGISTER),
                     help="register.json 路径（默认 SMS registry）")
