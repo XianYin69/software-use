@@ -1,0 +1,22 @@
+{
+  "dependencies": [
+    {"name": "Skill_Generator", "kind": "skill", "source_url": "local://Skill_Generator",
+     "license": "MIT", "version": "installed", "install": "SMS register.json 已索引",
+     "purpose": "resolve 未命中时创建 software_use_only-<app> 附属技能", "checked_at": "2026-10-03"},
+    {"name": "camera-vision", "kind": "skill", "source_url": "local://camera-vision",
+     "license": "MIT", "version": "installed", "install": "SMS register.json 已索引",
+     "purpose": "取证：图像/摄像头判读（本体不自判读语义）", "checked_at": "2026-10-03"},
+    {"name": "screen-vision", "kind": "skill", "source_url": "local://screen-vision",
+     "license": "MIT", "version": "installed", "install": "SMS register.json 已索引",
+     "purpose": "取证：屏幕截图与 OCR", "checked_at": "2026-10-03"},
+    {"name": "audio-perception", "kind": "skill", "source_url": "local://audio-perception",
+     "license": "MIT", "version": "installed", "install": "SMS register.json 已索引",
+     "purpose": "含声音软件的听觉取证", "checked_at": "2026-10-03"},
+    {"name": "webfetch", "kind": "tool", "source_url": "local://skill_manage_system/tool/webfetch",
+     "license": "MIT", "version": "builtin", "install": "SMS 内置工具（需 :grant network）",
+     "purpose": "网络检索官方文档，产出 source 链接", "checked_at": "2026-10-03"},
+    {"name": "task_table", "kind": "skill", "source_url": "local://task_table",
+     "license": "MIT", "version": "installed", "install": "SMS register.json 已索引",
+     "purpose": "learn→resolve→invoke→reinforce 四阶段编排为任务表推进", "checked_at": "2026-10-03"}
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "software-use attached skill",
+  "description": "附属技能目录与 state.json 约束（落 software-use/private/，深度 2）",
+  "type": "object",
+  "required": ["dir", "frontmatter", "state"],
+  "properties": {
+    "dir": {
+      "type": "object",
+      "required": ["path", "required_files"],
+      "properties": {
+        "path": {"const": "software-use/private/software_use_only-<slug>"},
+        "required_files": {
+          "type": "array",
+          "items": {"enum": ["SKILL.md", "knowledge/experience.jsonl",
+                               "knowledge/knowledge.md", "resistance/私有约束.md",
+                               "planned_tasks/", "CHANGELOG.md", "state.json"]}
+        }
+      }
+    },
+    "frontmatter": {
+      "type": "object",
+      "required": ["name", "visibility", "parent"],
+      "properties": {
+        "name": {"type": "string", "pattern": "^software_use_only-[a-z0-9][a-z0-9._-]*$"},
+        "visibility": {"const": "PRIVATE"},
+        "parent": {"const": "software-use"},
+        "title": {"type": "string"},
+        "version": {"type": "string"},
+        "triggers": {"type": "array", "items": {"type": "string"}},
+        "tools": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "state": {
+      "type": "object",
+      "required": ["app", "status", "confidence", "uses", "learned_from", "evidence"],
+      "properties": {
+        "app": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+        "status": {"enum": ["ready", "draft", "stale"]},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "uses": {"type": "integer", "minimum": 0},
+        "last_used": {"type": ["string", "null"]},
+        "learned_from": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "pt-<skill>-<slug>",
+  "title": "示例：每日 08:00 检查依赖上游更新",
+  "skill": "<技能id>",
+  "input": "到期要执行的诉求文本",
+  "schedule": {
+    "mode": "at|cron|interval",
+    "at": "2026-09-30T08:00",
+    "cron": "0 8 * * *",
+    "every_min": 60
+  },
+  "session": { "kind": "cron", "key": "<skill>:pt-<skill>-<slug>" },
+  "status": "pending",
+  "created": "<ISO本地>",
+  "next_run": "<ISO本地>",
+  "last_run": null,
+  "runs": 0,
+  "notify": "shell",
+  "depends": []
+}

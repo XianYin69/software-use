@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-10-03T07:56:59",
+  "prefix": "software_use_only-",
+  "count": 1,
+  "skills": [
+    {
+      "name": "software_use_only-demo",
+      "app": "demo",
+      "path": "C:\\Users\\User\\.kilocode\\skills\\software-use\\private\\software_use_only-demo",
+      "title": "Demo App",
+      "version": "0.1.0",
+      "summary": ">",
+      "triggers": [
+        "[\"demo\", \"试跑\"]"
+      ],
+      "tools": [
+        "[\"exec\", \"read\"]"
+      ],
+      "visibility": "PRIVATE",
+      "parent": "software-use",
+      "confidence": 0.7,
+      "uses": 1,
+      "last_used": "2026-10-03T07:56:59",
+      "learned_from": [
+        "https://example.com/demo-docs"
+      ],
+      "evidence": [
+        "C:\\Users\\User\\AppData\\Local\\SMS\\workspaces\\_virtual\\conv-20261003-074702-734319\\tmp\\demo_evidence.txt"
+      ],
+      "status": "ready"
+    }
+  ],
+  "missing": []
+}
