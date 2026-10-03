@@ -10,6 +10,9 @@ __pycache__/
 .vscode/
 .kilo/
 
-# 私有附属技能与生成索引：本仓库可见性 PUBLIC，绝不允许入库（红线1）
+# private/ ＝**独立私有仓的工作树**（自带 .git 与 remote）：附属技能在那个
+# 仓里正常入库、走 功能分支→dev→main、可推 GitHub **PRIVATE** 仓。它不属于
+# 本仓内容，故本仓不收录——这**不是**「附属技能绝不发布」：不公开＝仓库
+# 可见性 PRIVATE（su_publish.py --check-visibility 校验）；混入本仓即泄漏。
 private/*
 !private/.gitkeep

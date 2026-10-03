@@ -81,7 +81,7 @@ CONTRACT = {
     "registration": "附属技能必须出现在 SMS register.json"
                      "（visibility=PRIVATE·parent=software-use·publish=false），"
                      "由 register.py --write 扫描登记；"
-                     "注册＝强制，进 git/远端＝禁止。",
+                     "注册＝强制（publish=false 不进 hub/公开索引）；发布＝只进 private/ 独立私有仓（GitHub PRIVATE）。",
 }
 
 
