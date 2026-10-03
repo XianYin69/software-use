@@ -45,3 +45,4 @@ PRIVATE，**不是不入库**；可见性由仓库属性＋脚本判定＋文档
 依赖、不复制其实现；附属技能必须登记 register.json、只入私有仓（禁入本体公开仓）；无证据不得
 称「已学会」；强化只追加不改历史；写盘仅限本目录与 private/；不自判读语义。
 详见 [resistance/红线约束.md](resistance/红线约束.md)。
+> 前台回退的「用户同意」有两种：逐次同意，或附属技能 `state.json` 里 `foreground_fallback.allowed=true` 的**长期授权**（standing-grant， 由 `su_invoke.py` 随契约下发 `consent_token`/`scope`/`limits`）；两者都只对被点名的软件生效，执行时仍须逐步过 `safety_gate`＋`hud_overlay`＋前后焦点审计，越出 `limits` 即停。

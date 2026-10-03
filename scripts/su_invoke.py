@@ -63,7 +63,10 @@ CONTRACT = {
         "batch_runner（批量）、screenshot_verify（前后截图验证）",
         "每一步先过 safety_gate、开 hud_overlay 会话；"
         "遇 human_gate（验证码/登录墙）立即停止并回报；"
-        "SendInput 前台回退（real_input）须先征得用户同意",
+        "SendInput 前台回退（real_input）须先征得用户同意；"
+        "若附属技能 state.json 的 foreground_fallback.allowed=true，"
+        "即视为用户已就该软件长期授权，consent 取该字段 consent_token，"
+        "并严格遵守其 scope/limits（其他软件仍须逐次征得同意）",
         "视频类取证交 video-viewer（probe/extract/bisect/analyze）"
         "定位目标时刻，帧交 screen-vision/camera-vision、"
         "音频交 audio-perception 判读",
@@ -83,6 +86,21 @@ CONTRACT = {
                      "由 register.py --write 扫描登记；"
                      "注册＝强制（publish=false 不进 hub/公开索引）；发布＝只进 private/ 独立私有仓（GitHub PRIVATE）。",
 }
+
+
+def fg_policy(skill_dir):
+    """读附属技能 state.json 的前台回退授权（无＝默认禁止，须逐次征得同意）。"""
+    p = skill_dir / "state.json"
+    if not p.exists():
+        return {"allowed": False, "note": "无授权记录：前台回退须先征得用户同意"}
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"allowed": False, "note": "state.json 不可读：按禁止处理"}
+    fg = d.get("foreground_fallback") or {}
+    if not fg.get("allowed"):
+        return {"allowed": False, "note": "未授权：前台回退须先征得用户同意"}
+    return fg
 
 
 def resolve(app):
@@ -119,6 +137,7 @@ def main():
                      "confidence": (row or {}).get("confidence", 0.2),
                      "uses": (row or {}).get("uses", 0),
                      "used_skills": (row or {}).get("used_skills", []),
+                     "foreground_fallback": fg_policy(skill_dir),
                      "recent_experience": ledger_digest(skill_dir, a.digest)})
     emit({"ok": True, "action": "invoke", **contract})
     return 0
