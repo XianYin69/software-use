@@ -59,8 +59,8 @@ def collect_evidence(raw):
 SKILL_TMPL = """---
 name: {name}
 description: >
-  {app} 的私有操作经验附属技能（注册进 SMS·不发布进 git）：由 software-use 在真实使用中
-  取证学习，仅供 software-use 经前缀索引调取与强化；内容涉侵权，永不进任何 git 仓库。
+  {app} 的私有操作经验附属技能（注册进 SMS·只进私有仓）：由 software-use 在真实使用中
+  取证学习，仅供 software-use 经前缀索引调取与强化；只入 private/ 独立私有仓（GitHub PRIVATE），不得进入本体公开仓。
 license: MIT
 visibility: PRIVATE
 parent: software-use
@@ -100,14 +100,14 @@ metadata:
 
 ## 约束
 
-- 见 [resistance/私有约束.md](resistance/私有约束.md)：必须登记 SMS register.json、严禁入 git、不改写历史。
+- 见 [resistance/私有约束.md](resistance/私有约束.md)：必须登记 SMS register.json、只入私有仓（禁入本体公开仓）、不改写历史。
 """
 
 RES_TMPL = """# 私有约束（{name}）
 
 1. 本技能必须登记进 SMS register.json（visibility=PRIVATE·parent=software-use），
    由 register.py 深度 2 扫描自动完成——注册＝强制，不得手写注册表。
-2. 但严禁进入任何 git 仓库、commit、push、remote 或 GitHub（内容涉侵权）；
+2. 只允许进入 private/ 独立私有仓（GitHub PRIVATE）的 commit/分支/推送；严禁出现在本体公开仓的索引或暂存区；
    提交前必查 `git -C software-use ls-files private` 仅 `private/.gitkeep`。
 3. 不得把本技能 id 或内容复制进 software-use 的公开文档/示例。
 4. knowledge/experience.jsonl 只追加，禁止改写或删除历史条目。

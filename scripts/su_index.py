@@ -1,7 +1,7 @@
 """su_index.py - 私有附属技能索引器。
 
 按固定前缀 software_use_only- 扫描 private/（深度 2），生成/校验 index.json；
---audit 校验附属技能已登记进 SMS register.json（注册＝强制），并校验其绝不进 git（进 git＝禁止）；
+--audit 校验附属技能已登记进 SMS register.json（注册＝强制），并校验其未混入本体公开仓（混入公开仓＝泄漏）；
 --find 关键词检索。全部输出结构化 JSON。
 """
 import argparse
@@ -269,7 +269,8 @@ def _bad(register_path, code, detail):
 def audit(register_path, rows=None):
     """契约反转：附属技能**必须**登记进 SMS register.json（visibility=PRIVATE、
     parent=software-use）——缺失或不符 → E_NOT_REGISTERED；进 git 才是泄漏 →
-    E_GIT_LEAK（ls-files private 除 .gitkeep 外有项）/ E_NO_GITIGNORE（缺 private/*）。
+    E_LEAK_TO_PUBLIC（公开仓 ls-files private 除 .gitkeep 外有项）/
+    E_NO_GITIGNORE（缺 private/*）；private/ 未 init 为独立私有仓 → E_NO_PRIVATE_REPO。
     register 缺失/损坏仍回 E_NO_REGISTER / E_BAD_REGISTER，checked=False 由调用方 rc=2。"""
     path = Path(register_path)
     if rows is None:
@@ -297,7 +298,7 @@ def audit(register_path, rows=None):
         if ent.get("parent") != PARENT:
             why.append("parent=%r 应为 %r" % (ent.get("parent"), PARENT))
         if ent.get("publish") is not False:
-            why.append("publish=%r 应为 false（永不进 git/远端）" % ent.get("publish"))
+            why.append("publish=%r 应为 false（不进 hub 同步与公开索引）" % ent.get("publish"))
         if why:
             unregistered.append({"id": row["name"], "reason": "；".join(why)})
         else:
@@ -315,12 +316,17 @@ def audit(register_path, rows=None):
     else:
         leaked = [f for f in tracked if f != "private/.gitkeep"]
         if leaked:
-            errors.append("E_GIT_LEAK")
-            detail.append("private/ 内容有被 git 跟踪项：%s" % ", ".join(leaked))
+            errors.append("E_LEAK_TO_PUBLIC")
+            detail.append("附属技能混入本体公开仓：%s" % ", ".join(leaked))
+    if not (PRIVATE / ".git").exists():
+        errors.append("E_NO_PRIVATE_REPO")
+        detail.append("private/ 未 init 为独立私有仓，附属技能尚未入库"
+                      "（跑 su_publish.py --init-private --yes）")
     if not gitignore_ok():
         errors.append("E_NO_GITIGNORE")
-        detail.append(".gitignore 缺 `private/*`，附属技能可能随提交入库")
-    detail.append("注册＝强制（SMS 需按 id 索引派发），进 git/远端/GitHub＝禁止")
+        detail.append(".gitignore 缺 `private/*`，附属技能会随提交进入本体公开仓")
+    detail.append("注册＝强制（publish=false 不进 hub/公开索引）；发布＝进 private/ 独立"
+                  "私有仓（GitHub PRIVATE），禁止混入本体公开仓")
     return {"checked": True, "register": str(path), "registered": registered,
             "unregistered": unregistered, "git_tracked": tracked,
             "errors": errors, "error": errors[0] if errors else None,
@@ -333,7 +339,7 @@ def main():
     ap.add_argument("--build", action="store_true", help="扫描并生成 index.json")
     ap.add_argument("--find", metavar="KEY", help="按 name/app/触发词检索")
     ap.add_argument("--audit", action="store_true",
-                    help="校验附属技能已登记 register.json（注册强制·进 git 禁止）")
+                    help="校验附属技能已登记 register.json（注册强制·发布只进私有仓）")
     ap.add_argument("--list", action="store_true", help="列出全部索引条目")
     ap.add_argument("--register", default=str(DEFAULT_REGISTER),
                     help="register.json 路径（默认 SMS registry）")
