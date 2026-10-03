@@ -57,12 +57,31 @@ CONTRACT = {
     "read_only_entry": "software-use/scripts/su_invoke.py",
     "steps": [
         "按 skill_path 的 SKILL.md 与 knowledge/experience.jsonl 执行真实操作",
+        "真实操作＝调用 safe-mouse-automation 既有通道："
+        "desktop_ops（打开/枚举）、app_ops（UIA 控件与菜单）、"
+        "virtual_mouse（点击/打字/拖拽）、browser_cdp（浏览器）、"
+        "batch_runner（批量）、screenshot_verify（前后截图验证）",
+        "每一步先过 safety_gate、开 hud_overlay 会话；"
+        "遇 human_gate（验证码/登录墙）立即停止并回报；"
+        "SendInput 前台回退（real_input）须先征得用户同意",
+        "视频类取证交 video-viewer（probe/extract/bisect/analyze）"
+        "定位目标时刻，帧交 screen-vision/camera-vision、"
+        "音频交 audio-perception 判读",
         "取证（截图/OCR 交 screen-vision/camera-vision，声音交 audio-perception）",
         "官方文档核对交 webfetch",
         "结束后回写：python scripts/su_reinforce.py --app <app> --outcome ok|fail --note ...",
     ],
-    "forbidden": ["把附属技能内容复制进公开文档", "改写 experience.jsonl 历史条目",
-                  "自行把附属技能登记进 register.json"],
+    "forbidden": ["自研鼠标键盘模拟或复制依赖技能实现（只引用 id）",
+                  "绕过 safe-mouse-automation 的 safety_gate/"
+                  "human_gate 直接操作",
+                  "把附属技能内容复制进公开文档",
+                  "改写 experience.jsonl 历史条目",
+                  "把 private/ 内容 git add/commit/push 或推到 GitHub（内容涉侵权）",
+                  "手写 register.json（登记由 register.py 深度 2 扫描完成）"],
+    "registration": "附属技能必须出现在 SMS register.json"
+                     "（visibility=PRIVATE·parent=software-use·publish=false），"
+                     "由 register.py --write 扫描登记；"
+                     "注册＝强制（publish=false 不进 hub/公开索引）；发布＝只进 private/ 独立私有仓（GitHub PRIVATE）。",
 }
 
 
@@ -99,6 +118,7 @@ def main():
                      "status": (row or {}).get("status", "draft"),
                      "confidence": (row or {}).get("confidence", 0.2),
                      "uses": (row or {}).get("uses", 0),
+                     "used_skills": (row or {}).get("used_skills", []),
                      "recent_experience": ledger_digest(skill_dir, a.digest)})
     emit({"ok": True, "action": "invoke", **contract})
     return 0

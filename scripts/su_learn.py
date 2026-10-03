@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+from su_index import rebuild_index
+
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = ROOT / "private"
 PREFIX = "software_use_only-"
@@ -57,8 +59,8 @@ def collect_evidence(raw):
 SKILL_TMPL = """---
 name: {name}
 description: >
-  {app} 的私有操作经验附属技能（不公开）：由 software-use 在真实使用中取证学习，
-  仅供 software-use 经前缀索引调取与强化。
+  {app} 的私有操作经验附属技能（注册进 SMS·只进私有仓）：由 software-use 在真实使用中
+  取证学习，仅供 software-use 经前缀索引调取与强化；只入 private/ 独立私有仓（GitHub PRIVATE），不得进入本体公开仓。
 license: MIT
 visibility: PRIVATE
 parent: software-use
@@ -78,6 +80,7 @@ metadata:
 
 - 目标软件：{app}
 - 学习来源：{sources}
+- 所用依赖技能：{used_skills}（只引用 id，不复制实现）
 - 经验台账：[`knowledge/experience.jsonl`](knowledge/experience.jsonl)（只追加）
 - 状态：{status}（confidence {conf} / uses {uses}）
 
@@ -86,22 +89,116 @@ metadata:
 1. 由 software-use 的 `su_index.py --find {app}` 命中后，经 `su_invoke.py` 取调用契约。
 2. 执行中产生的新快捷键/坑/成功路径，用 `su_reinforce.py --app {app}` 回写。
 
+## 依赖（不自办＝交依赖技能）
+
+- 画面 `screen-vision`/`camera-vision`；声音 `audio-perception`；视频取证
+  `video-viewer`（probe/extract/bisect/analyze 二分定位目标时刻）。
+- 实际操作只走 `safe-mouse-automation` 既有通道（desktop_ops/app_ops/
+  virtual_mouse/browser_cdp/batch_runner/screenshot_verify）：每步先过
+  `safety_gate`、开 `hud_overlay`，遇 `human_gate` 立即停止回报；
+  禁止自研输入模拟或复制其实现。
+
 ## 约束
 
-- 见 [resistance/私有约束.md](resistance/私有约束.md)：不外泄、不改写历史。
+- 见 [resistance/私有约束.md](resistance/私有约束.md)：必须登记 SMS register.json、只入私有仓（禁入本体公开仓）、不改写历史。
 """
 
 RES_TMPL = """# 私有约束（{name}）
 
-1. 本技能位于 software-use/private/ 下，深度 2，结构上不得进 register.json。
-2. 不得把本技能 id 或内容复制进 software-use 的公开文档/示例。
-3. knowledge/experience.jsonl 只追加，禁止改写或删除历史条目。
-4. 无真实证据的条目 status=draft，confidence ≤ 0.3。
+1. 本技能必须登记进 SMS register.json（visibility=PRIVATE·parent=software-use），
+   由 register.py 深度 2 扫描自动完成——注册＝强制，不得手写注册表。
+2. 只允许进入 private/ 独立私有仓（GitHub PRIVATE）的 commit/分支/推送；严禁出现在本体公开仓的索引或暂存区；
+   提交前必查 `git -C software-use ls-files private` 仅 `private/.gitkeep`。
+3. 不得把本技能 id 或内容复制进 software-use 的公开文档/示例。
+4. knowledge/experience.jsonl 只追加，禁止改写或删除历史条目。
+5. 无真实证据的条目 status=draft，confidence ≤ 0.3。
 """
 
 
+def sync_frontmatter(md, title, triggers, tools):
+    """再学习时同步 frontmatter 的 title/triggers/tools（只改元数据行，
+    不动正文与历史；空值不覆盖已有值）。"""
+    text = md.read_text(encoding="utf-8-sig")
+    lines = text.splitlines()
+    end = next((i for i in range(1, len(lines))
+                if lines[i].strip() == "---"), None)
+    if end is None:
+        return False
+    updates = {"title": title or "",
+               "triggers": json.dumps(triggers, ensure_ascii=False)
+               if triggers else "",
+               "tools": json.dumps(tools, ensure_ascii=False)
+               if tools else ""}
+    changed = False
+    for i in range(1, end):
+        key, sep, _ = lines[i].partition(":")
+        if not sep:
+            continue
+        name = key.strip()
+        if name in updates and updates[name]:
+            new_line = "%s: %s" % (name, updates[name])
+            if new_line != lines[i].rstrip():
+                lines[i] = new_line
+                changed = True
+    if changed:
+        tmp = md.with_suffix(".md.tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, md)
+    return changed
+
+
+SOURCES_PREFIX = "- 学习来源："
+
+
+def sync_sources_line(md, sources):
+    """重写附属技能 SKILL.md 的「- 学习来源：」单行（learn/reinforce 共用）。
+
+    只动这一行：正文其余内容与 knowledge/experience.jsonl 一律不碰
+    （红线3 只追加不改历史）。值取合并后的 learned_from，渲染为 JSON 数组。
+    """
+    if not md.exists():
+        return False
+    lines = md.read_text(encoding="utf-8-sig").splitlines()
+    new_line = SOURCES_PREFIX + json.dumps(sources, ensure_ascii=False)
+    changed = False
+    for i, line in enumerate(lines):
+        if line.startswith(SOURCES_PREFIX):
+            if line.rstrip() != new_line:
+                lines[i] = new_line
+                changed = True
+            break
+    if changed:
+        tmp = md.with_suffix(".md.tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, md)
+    return changed
+
+
+USED_PREFIX = "- 所用依赖技能："
+
+
+def sync_used_line(md, used):
+    """重写附属技能 SKILL.md 的「所用依赖技能」单行（只引用 id）。"""
+    if not md.exists():
+        return False
+    lines = md.read_text(encoding="utf-8-sig").splitlines()
+    new_line = USED_PREFIX + json.dumps(used, ensure_ascii=False)
+    changed = False
+    for i, line in enumerate(lines):
+        if line.startswith(USED_PREFIX):
+            if line.rstrip() != new_line:
+                lines[i] = new_line
+                changed = True
+            break
+    if changed:
+        tmp = md.with_suffix(".md.tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, md)
+    return changed
+
+
 def write_attached(skill_dir, app, title, triggers, tools, sources,
-                   status, conf, uses):
+                   status, conf, uses, used_skills):
     name = PREFIX + app
     (skill_dir / "knowledge").mkdir(parents=True, exist_ok=True)
     (skill_dir / "resistance").mkdir(parents=True, exist_ok=True)
@@ -114,12 +211,16 @@ def write_attached(skill_dir, app, title, triggers, tools, sources,
             triggers=json.dumps(triggers, ensure_ascii=False),
             tools=json.dumps(tools, ensure_ascii=False),
             sources=json.dumps(sources, ensure_ascii=False),
-            status=status, conf=conf, uses=uses), encoding="utf-8")
+            status=status, conf=conf, uses=uses,
+            used_skills=json.dumps(used_skills, ensure_ascii=False)),
+            encoding="utf-8")
         (skill_dir / "resistance" / "私有约束.md").write_text(
             RES_TMPL.format(name=name), encoding="utf-8")
         (skill_dir / "CHANGELOG.md").write_text(
             "# CHANGELOG\n\n- %s init by su_learn (app=%s)\n"
             % (now_iso(), app), encoding="utf-8")
+    else:
+        sync_frontmatter(md, title, triggers, tools)
     return created
 
 
@@ -139,6 +240,8 @@ def main():
     ap.add_argument("--title", default="", help="人类可读标题")
     ap.add_argument("--triggers", default="", help="触发词，逗号分隔")
     ap.add_argument("--tools", default="", help="涉及工具/命令，逗号分隔")
+    ap.add_argument("--used-skills", default="",
+                    help="用到的依赖技能 id，逗号分隔（只引用不复制）")
     ap.add_argument("--confidence", type=float, default=None,
                     help="自评置信度 0~1（无证据强制 ≤0.3）")
     a = ap.parse_args()
@@ -154,21 +257,24 @@ def main():
                  else (0.6 if evidence else 0.2))
     if not evidence:
         conf = min(conf, MAX_DRAFT_CONF)
+    used_skills = [u.strip().lower() for u in a.used_skills.split(",")
+                   if u.strip()]
     skill_dir = PRIVATE / (PREFIX + app)
     skill_dir.mkdir(parents=True, exist_ok=True)
     created = write_attached(
         skill_dir, app, a.title,
         [t.strip() for t in a.triggers.split(",") if t.strip()],
         [t.strip() for t in a.tools.split(",") if t.strip()],
-        sources, status, conf, 0)
+        sources, status, conf, 0, used_skills)
     ledger = skill_dir / "knowledge" / "experience.jsonl"
     append_entry(ledger, {"ts": now_iso(), "kind": "learn", "app": app,
                           "note": a.note, "evidence": evidence,
                           "sources": sources, "confidence": conf,
-                          "status": status})
+                          "status": status, "used_skills": used_skills})
     state_path = skill_dir / "state.json"
     state = {"app": app, "status": status, "confidence": conf, "uses": 0,
-             "last_used": None, "learned_from": sources, "evidence": evidence}
+             "last_used": None, "learned_from": sources,
+             "evidence": evidence, "used_skills": used_skills}
     if state_path.exists():
         old = json.loads(state_path.read_text(encoding="utf-8"))
         merged = list(old.get("evidence", []))
@@ -180,14 +286,28 @@ def main():
         state["last_used"] = old.get("last_used")
         state["learned_from"] = sorted(set(old.get("learned_from", []))
                                        | set(sources))
+        state["used_skills"] = sorted(set(old.get("used_skills", []))
+                                        | set(used_skills))
     tmp = state_path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n",
                    encoding="utf-8")
     os.replace(tmp, state_path)
-    emit({"ok": True, "action": "learn", "name": PREFIX + app,
-          "path": str(skill_dir), "created": created, "status": status,
-          "confidence": conf, "evidence_count": len(evidence),
-          "ledger": str(ledger), "next": "su_index.py --build"})
+    sync_sources_line(skill_dir / "SKILL.md", state["learned_from"])
+    sync_used_line(skill_dir / "SKILL.md", state["used_skills"])
+    index_rc, index_stderr = rebuild_index()
+    payload = {"ok": index_rc == 0, "action": "learn", "name": PREFIX + app,
+               "path": str(skill_dir), "created": created, "status": status,
+               "confidence": conf, "evidence_count": len(evidence),
+               "ledger": str(ledger), "learned_from": state["learned_from"],
+               "used_skills": state["used_skills"],
+               "index_rc": index_rc, "index_stderr": index_stderr or None}
+    if index_rc != 0:
+        payload["error"] = "E_INDEX_STALE"
+        payload["detail"] = ("附属技能已写盘但 index.json 未刷新（rc=%s），"
+                             "索引仍陈旧" % index_rc)
+        emit(payload)
+        return 2
+    emit(payload)
     return 0
 
 

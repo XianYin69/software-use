@@ -41,7 +41,8 @@
         "uses": {"type": "integer", "minimum": 0},
         "last_used": {"type": ["string", "null"]},
         "learned_from": {"type": "array", "items": {"type": "string"}},
-        "evidence": {"type": "array", "items": {"type": "string"}}
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "used_skills": {"type": "array", "items": {"type": "string"}}
       }
     }
   }
