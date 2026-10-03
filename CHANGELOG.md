@@ -1,4 +1,7 @@
 # CHANGELOG
+## 未发布（docs）- 2026-10-03（新增 knowledge/外部消费方契约.md）
+- 为外部 PUBLIC 技能（首例 `aesthetics`）固化消费姿势：只经 `su_index.py --find` 检索、`su_invoke.py --app` 取绝对路径与契约；禁止直读写 `software-use\private\`、禁止把 `software_use_only-*` 写进 SMS `register.json`（登记由 `register.py` 深度 2 完成）、禁止复制附属正文进消费方仓库（红线 8）。
+- 取证：`--find screenshot/image/viewer/photo/figma/vscode/typography/layout/color/font/design/aesthetics` 全部 `E_NOT_LEARNED`（现仅 demo、python-cli 两条附属）；`--audit` rc=0、`errors: []`、`git_tracked: [private/.gitkeep]`。既有 0.4.0 条目一字未改。
 ## 0.4.0 - 2026-10-03（返工：双仓可见性模型）
 - 纠正 0.2.x 的错误实现：把「附属技能不公开」实现成 `private/*` 进 `.gitignore`、完全不入库不发布，违反 Skill_Generator `git工作流约束` 第 7 条（ignore 只允许临时产物与 IDE）与第 10 条（不公开＝仓库可见性 **PRIVATE**）。改为**双仓模型**：本体仓 GitHub PUBLIC；`private/` 为独立私有仓工作树（自带 `.git`/remote），附属技能照常入库、走 功能分支→dev→main、可推 GitHub **PRIVATE** 仓。注册层不变（`register.json` 强制；`publish=false` 只表示不进 hub 同步与公开索引，不表示不入 git）。
 - 新增 `scripts/su_publish.py`：`--init-private`（本地 init＋`.gitignore`＋提交＋配 remote，不推送）、`--commit`/`--integrate`（私有仓分支流程）、`--check-visibility`（`gh repo view --json visibility`：本体须 PUBLIC、附属须 PRIVATE，不符 rc=2 `E_VISIBILITY_MISMATCH`；远端未配置 `E_NO_REMOTE`）、`--guard`（附属技能混入本体仓 → rc=2 `E_LEAK_TO_PUBLIC`；`private/` 未入库 → `E_NO_PRIVATE_REPO`）、`--status`。默认 dry-run，`--yes` 才动盘；`--push` 须 `--authorized-by-user`。
