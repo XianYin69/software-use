@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from su_index import rebuild_index
-from su_learn import sync_sources_line
+from su_learn import sync_sources_line, sync_used_line
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = ROOT / "private"
@@ -51,14 +51,16 @@ def main():
     ap.add_argument("--note", required=True, help="新快捷键/坑/成功路径")
     ap.add_argument("--evidence", default="", help="本次证据，逗号分隔")
     ap.add_argument("--source", default="", help="本次检索来源，逗号分隔")
+    ap.add_argument("--used-skills", default="",
+                    help="本次用到的依赖技能 id，逗号分隔（只追加不改历史）")
     a = ap.parse_args()
     app = a.app.strip().lower()
     if not SLUG_RE.match(app):
         return fail("E_BAD_SLUG", "slug 非法：%s" % app)
     skill_dir = PRIVATE / (PREFIX + app)
     if not (skill_dir / "SKILL.md").exists():
-        return fail("E_NOT_LEARNED", "先 learn 再 reinforce",
-                    {"expected_path": str(skill_dir)})
+        return fail("E_NOT_LEARNED",
+                    "先 learn 再 reinforce（期望路径 %s）" % skill_dir)
     state_path = skill_dir / "state.json"
     state = {}
     if state_path.exists():
@@ -69,10 +71,13 @@ def main():
     status = "ready" if conf > 0.3 else "draft"
     evidence = [e.strip() for e in a.evidence.split(",") if e.strip()]
     sources = [s.strip() for s in a.source.split(",") if s.strip()]
+    used = [u.strip().lower() for u in a.used_skills.split(",")
+            if u.strip()]
     ledger = skill_dir / "knowledge" / "experience.jsonl"
     entry = {"ts": now_iso(), "kind": "reinforce", "app": app,
              "outcome": a.outcome, "note": a.note, "evidence": evidence,
-             "sources": sources, "confidence": conf, "uses": uses}
+             "sources": sources, "confidence": conf, "uses": uses,
+             "used_skills": used}
     with ledger.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     merged = list(state.get("evidence", []))
@@ -83,6 +88,8 @@ def main():
                  "uses": uses, "last_used": now_iso(),
                  "learned_from": sorted(set(state.get("learned_from", []))
                                         | set(sources)),
+                 "used_skills": sorted(set(state.get("used_skills", []))
+                                       | set(used)),
                  "evidence": merged}
     tmp = state_path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(new_state, ensure_ascii=False, indent=2) + "\n",
@@ -93,11 +100,13 @@ def main():
         fh.write("- %s reinforce %s conf=%.3f uses=%d :: %s\n"
                  % (new_state["last_used"], a.outcome, conf, uses, a.note))
     sync_sources_line(skill_dir / "SKILL.md", new_state["learned_from"])
+    sync_used_line(skill_dir / "SKILL.md", new_state["used_skills"])
     index_rc, index_stderr = rebuild_index()
     emit({"ok": index_rc == 0, "action": "reinforce",
           "name": PREFIX + app, "outcome": a.outcome, "confidence": conf,
           "uses": uses, "status": status, "last_used": new_state["last_used"],
           "ledger": str(ledger), "learned_from": new_state["learned_from"],
+          "used_skills": new_state["used_skills"],
           "index_rc": index_rc, "index_stderr": index_stderr or None,
           "error": None if index_rc == 0 else "E_INDEX_STALE"})
     return 0 if index_rc == 0 else 2
