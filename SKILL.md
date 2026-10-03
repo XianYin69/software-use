@@ -30,7 +30,7 @@ metadata:
 ## 不公开的机制
 
 `register.py` 只扫 `root + glob(root/*)`（深度 1），故 `private/` 下结构上不可能被登记；
-`su_index.py --audit` 反查 register.json，出现任何 `software_use_only-*` 即 FAIL（rc=2, E_LEAK）。
+`su_index.py --audit` 反查 register.json，出现任何 `software_use_only-*` 即 FAIL（rc=2, `E_LEAK`）；register 缺失或不可解析同样 FAIL，回 `E_NO_REGISTER`/`E_BAD_REGISTER`（rc=2），绝不静默通过。
 
 ## 索引
 

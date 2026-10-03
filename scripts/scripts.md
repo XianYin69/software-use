@@ -4,8 +4,8 @@
 
 | 脚本 | 作用 | 关键参数 |
 |---|---|---|
-| `su_index.py` | 按前缀扫 `private/` → 生成/校验 `index.json` | `--build` `--find <KEY>` `--audit` `--list` `--register` |
-| `su_learn.py` | 真实取证＋检索结论 → 附属技能草稿与经验条目 | `--app` `--evidence` `--source` `--note` `--title` `--triggers` `--tools` `--confidence` |
+| `su_index.py` | 按前缀扫 `private/` → 生成/校验 `index.json`（YAML 头解析含块标量与流式列表） | `--build` `--find <KEY>` `--audit` `--list` `--register` |
+| `su_learn.py` | 真实取证＋检索结论 → 附属技能草稿与经验条目（再学习同步 frontmatter 元数据） | `--app` `--evidence` `--source` `--note` `--title` `--triggers` `--tools` `--confidence` |
 | `su_invoke.py` | 解析附属技能路径并输出调用契约 | `--app` `--digest N` |
 | `su_reinforce.py` | 追加结果、uses+1、confidence 限幅、重建索引 | `--app` `--outcome ok|fail` `--note` `--evidence` `--source` |
 
@@ -19,6 +19,9 @@ python scripts/su_invoke.py --app vscode
 python scripts/su_reinforce.py --app vscode --outcome ok --note "..."
 python scripts/su_index.py --audit
 ```
+
+## audit 出口
+`--audit` 三类失败均 rc=2 且回结构化 JSON：`E_LEAK`（混入附属技能）、`E_NO_REGISTER`（register.json 不存在）、`E_BAD_REGISTER`（不可解析或缺 `skills` 数组）。反查不可用时**不得**当作「无泄漏」放行。
 
 ## 约定
 

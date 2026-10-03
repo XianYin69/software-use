@@ -35,27 +35,97 @@ def fail(code, detail):
     return 2
 
 
+BLOCK_RE = re.compile(r"^[|>][+-]?\d*$")
+
+
+def flow_list(val):
+    """行内流式列表 ["a", "b"] / [] → 干净字符串数组。"""
+    inner = val[1:-1].strip()
+    if not inner:
+        return []
+    try:
+        parsed = json.loads(val)
+    except ValueError:
+        parsed = None
+    if isinstance(parsed, list):
+        return [str(x).strip() for x in parsed if str(x).strip()]
+    out = []
+    for part in inner.split(","):
+        part = part.strip().strip("'\"")
+        if part:
+            out.append(part)
+    return out
+
+
+def block_scalar(lines, idx, n):
+    """收集块标量的所有更深缩进行，折叠为单行（换行→空格）。"""
+    parts = []
+    while idx < n:
+        nxt = lines[idx]
+        if nxt.strip() == "---":
+            break
+        if nxt.strip() and not nxt[:1].isspace():
+            break
+        parts.append(nxt.strip())
+        idx += 1
+    return " ".join(p for p in parts if p), idx
+
+
+def clean_value(val):
+    """去行内注释与包裹引号（保守：仅切空白后的 #）。"""
+    if val.startswith("#"):
+        return ""
+    return val.split(" #", 1)[0].strip().strip("'\"")
+
+
 def read_frontmatter(skill_md):
-    """极简 YAML 头解析（仅 key: value / 列表项），避免引入外部依赖。"""
-    text = skill_md.read_text(encoding="utf-8", errors="replace")
+    """YAML 头解析：key: value、块标量 > | >- |-、行内流式列表、顶层列表项；
+    嵌套映射（如 metadata: 下 category:）忽略且不污染上一个 key。"""
+    text = skill_md.read_text(encoding="utf-8-sig", errors="replace")
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
     meta, key = {}, None
-    for raw in lines[1:]:
+    idx, n = 1, len(lines)
+    while idx < n:
+        raw = lines[idx]
         if raw.strip() == "---":
             break
         if not raw.strip() or raw.lstrip().startswith("#"):
+            idx += 1
             continue
-        if raw[:1] in (" ", "\t") and raw.lstrip().startswith("- "):
-            if key:
-                meta.setdefault(key, []).append(raw.lstrip()[2:].strip().strip("'\""))
+        indent = len(raw) - len(raw.lstrip())
+        if indent:
+            stripped = raw.lstrip()
+            if stripped.startswith("- ") and key:
+                item = stripped[2:].strip().strip("'\"")
+                cur = meta.get(key)
+                cur = cur if isinstance(cur, list) else []
+                cur.append(item)
+                meta[key] = cur
+            elif ":" in raw:
+                key = None
+            idx += 1
             continue
-        if ":" in raw and not raw.startswith(" "):
-            key, val = raw.split(":", 1)
-            key = key.strip()
-            val = val.strip().strip("'\"")
-            meta[key] = val if val else []
+        if ":" not in raw:
+            idx += 1
+            continue
+        key, val = raw.split(":", 1)
+        key = key.strip()
+        val = clean_value(val.strip())
+        if BLOCK_RE.match(val):
+            meta[key], idx = block_scalar(lines, idx + 1, n)
+            continue
+        if val.startswith("[") and val.endswith("]"):
+            meta[key] = flow_list(val)
+            idx += 1
+            continue
+        if val.startswith("{") and val.endswith("}"):
+            meta[key] = []
+            idx += 1
+            continue
+        meta[key] = val if val else []
+        idx += 1
     return meta
 
 
@@ -152,24 +222,35 @@ def build(write=True):
 
 
 def audit(register_path):
-    """反查 SMS register.json：任何 software_use_only-* 出现即泄漏。"""
-    leaks = []
+    """反查 SMS register.json：任何 software_use_only-* 出现即泄漏。
+    register 缺失/损坏 → 结构化错误码（E_NO_REGISTER / E_BAD_REGISTER），
+    checked=False 且由调用方回 rc=2，绝不静默通过。"""
     path = Path(register_path)
     if not path.exists():
-        return {"checked": False, "register": str(path), "leaks": leaks,
-                "note": "register.json 不存在，视为无泄漏"}
+        return {"checked": False, "register": str(path), "leaks": [],
+                "error": "E_NO_REGISTER",
+                "detail": "register.json 不存在，无法反查泄漏：%s" % path}
     try:
-        doc = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        doc = json.loads(path.read_text(encoding="utf-8-sig", errors="replace"))
     except (OSError, ValueError) as err:
         return {"checked": False, "register": str(path), "leaks": [],
-                "note": "register.json 不可读: %s" % err}
-    for row in doc.get("skills", []):
-        ident = " ".join([str(row.get("id", "")), str(row.get("name", "")),
-                          str(row.get("install_path", ""))]).lower()
-        if PREFIX in ident or "\\private\\" in ident:
+                "error": "E_BAD_REGISTER",
+                "detail": "register.json 不可解析：%s" % err}
+    if not isinstance(doc, dict) or not isinstance(doc.get("skills"), list):
+        return {"checked": False, "register": str(path), "leaks": [],
+                "error": "E_BAD_REGISTER",
+                "detail": "register.json 缺 skills 数组，格式不符"}
+    leaks = []
+    for row in doc["skills"]:
+        if not isinstance(row, dict):
+            continue
+        ident = " ".join(str(row.get(k, "")) for k in
+                         ("id", "name", "install_path")).lower()
+        if PREFIX in ident or "\\private\\" in ident or "/private/" in ident:
             leaks.append(row.get("id") or row.get("name"))
     return {"checked": True, "register": str(path), "leaks": leaks,
-            "note": "反查 register.json 是否混入附属技能"}
+            "error": "E_LEAK" if leaks else None,
+            "detail": "反查 register.json 是否混入附属技能"}
 
 
 def main():
@@ -185,10 +266,9 @@ def main():
     if a.audit:
         doc, missing = build(write=False)
         res = audit(a.register)
-        rc = 2 if res["leaks"] else 0
+        rc = 2 if res["error"] else 0
         emit({"ok": rc == 0, "action": "audit", "prefix": PREFIX,
-              "indexed": doc["count"], "missing": missing,
-              "error": "E_LEAK" if res["leaks"] else None, **res})
+              "indexed": doc["count"], "missing": missing, **res})
         return rc
     if a.find:
         doc, _ = build(write=False)
