@@ -100,6 +100,38 @@ RES_TMPL = """# 私有约束（{name}）
 """
 
 
+def sync_frontmatter(md, title, triggers, tools):
+    """再学习时同步 frontmatter 的 title/triggers/tools（只改元数据行，
+    不动正文与历史；空值不覆盖已有值）。"""
+    text = md.read_text(encoding="utf-8-sig")
+    lines = text.splitlines()
+    end = next((i for i in range(1, len(lines))
+                if lines[i].strip() == "---"), None)
+    if end is None:
+        return False
+    updates = {"title": title or "",
+               "triggers": json.dumps(triggers, ensure_ascii=False)
+               if triggers else "",
+               "tools": json.dumps(tools, ensure_ascii=False)
+               if tools else ""}
+    changed = False
+    for i in range(1, end):
+        key, sep, _ = lines[i].partition(":")
+        if not sep:
+            continue
+        name = key.strip()
+        if name in updates and updates[name]:
+            new_line = "%s: %s" % (name, updates[name])
+            if new_line != lines[i].rstrip():
+                lines[i] = new_line
+                changed = True
+    if changed:
+        tmp = md.with_suffix(".md.tmp")
+        tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        os.replace(tmp, md)
+    return changed
+
+
 def write_attached(skill_dir, app, title, triggers, tools, sources,
                    status, conf, uses):
     name = PREFIX + app
@@ -120,6 +152,8 @@ def write_attached(skill_dir, app, title, triggers, tools, sources,
         (skill_dir / "CHANGELOG.md").write_text(
             "# CHANGELOG\n\n- %s init by su_learn (app=%s)\n"
             % (now_iso(), app), encoding="utf-8")
+    else:
+        sync_frontmatter(md, title, triggers, tools)
     return created
 
 
