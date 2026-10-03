@@ -9,6 +9,7 @@ software-use 只存「如何学软件」的元知识，不存任何具体软件�
 - [依赖分工](依赖分工.md)：判读/输入模拟/建附属/文档核对各交哪个依赖技能与通道。
 - [四阶段流程](四阶段流程.md)：learn → resolve → invoke → reinforce 的输入输出与衔接。
 - [强化只追加不改历史](强化只追加不改历史.md)：experience.jsonl 的 append-only 语义与状态位。
+- [外部消费方契约](外部消费方契约.md)：外部 PUBLIC 技能只能经 `su_index.py --find` / `su_invoke.py --app` 取路径与契约；禁直读 `private/`、禁代登 `software_use_only-*`、禁复制附属正文。
 
 ## 边界
 
