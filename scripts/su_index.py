@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -219,6 +220,18 @@ def build(write=True):
                        encoding="utf-8")
         os.replace(tmp, INDEX)
     return doc, missing
+
+
+def rebuild_index():
+    """learn/reinforce 写盘后共用的索引重建（唯一实现，勿复制第二份）。
+
+    子进程跑 `su_index.py --build`，返回 (rc, stderr)：rc=0 索引已刷新；
+    rc!=0 即 index.json 陈旧，调用方须回结构化错误码，不得静默。
+    """
+    proc = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "su_index.py"), "--build"],
+        capture_output=True, text=True)
+    return proc.returncode, (proc.stderr or "").strip()[:200]
 
 
 def audit(register_path):
