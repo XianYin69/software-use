@@ -78,7 +78,7 @@ def repo_slug(path, default):
     if rc != 0 or not out:
         return None, default
     m = re.search(r"github\.com[:/]([^/]+)/(.+?)(?:\.git)?/?$", out)
-    return (m.group(1) + "/" + m.group(2)) if m else (None, default)
+    return (m.group(1) + "/" + m.group(2), default) if m else (None, default)
 
 
 def guard():
