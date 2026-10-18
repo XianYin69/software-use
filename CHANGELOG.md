@@ -1,3 +1,7 @@
+## 2026-10-18
+- Added four private attached software-use skills: software_use_only-virtual-box, software_use_only-vmware, software_use_only-hyper-v, software_use_only-wsl.
+- Updated private/index.json count to 28, registry entries for PRIVATE/publish=false, and dependency routing in general-software-dev.
+
 # CHANGELOG
 ## 未发布（feat）- 2026-10-03（前台回退 standing-grant）
 - `su_invoke.py` 新增 `fg_policy()`：读附属技能 `state.json` 的 `foreground_fallback` 并随契约下发（allowed/consent_token/scope/limits）；无该字段＝按原规则逐次征得同意。CONTRACT 第 3 步同步：长期授权只对被点名软件生效。
